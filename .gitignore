@@ -1,0 +1,9 @@
+build/
+.frnet_config/
+out/
+*.o
+core.*
+*.log
+client
+server
+

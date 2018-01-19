@@ -1,0 +1,29 @@
+include ../../make/config.mk
+
+OPTIONAL_CFLAGS=-fPIC -D__FRNET_EPOLL -rdynamic
+
+PROJECT_NAME=network
+
+EPOLL_LIB_NAME=frnet_epoll
+EPOLL_OBJECTS= \
+	./$(OUTPUT_TEMPORARY_PATH)/./frnet_interface.o \
+	./$(OUTPUT_TEMPORARY_PATH)/./frnet_epoll.o
+
+all : clean epoll
+
+install:
+	cp ${BUILD_LIBRARY_PATH}/lib${EPOLL_LIB_NAME}.so ${OUTPUT_LIB_PATH}
+	cp -rf ${BUILD_INCLUDE_PATH}/${PROJECT_NAME} ${OUTPUT_INCLUDE_PATH}/
+
+clean :
+	rm -rf ${OUTPUT_TEMPORARY_PATH}/frnet*.o
+	rm -f ${BUILD_LIBRARY_PATH}/lib${EPOLL_LIB_NAME}.so
+	rm -rf ${BUILD_INCLUDE_PATH}/${PROJECT_NAME}
+
+epoll : ${EPOLL_OBJECTS}
+	mkdir -p ${BUILD_LIBRARY_PATH}/
+	mkdir -p ${BUILD_INCLUDE_PATH}/${PROJECT_NAME}
+	${COMMON_CXX} ${COMMON_CFLAGS} ${OPTIONAL_CFLAGS} -shared -o ${BUILD_LIBRARY_PATH}/lib${EPOLL_LIB_NAME}.so ${EPOLL_OBJECTS} ${COMMON_LIBRARY_PATH} ${COMMON_LIBRARY}
+	ar crv ${BUILD_LIBRARY_PATH}/lib${EPOLL_LIB_NAME}_static.a ${EPOLL_OBJECTS}
+	cp -rf *.h ${BUILD_INCLUDE_PATH}/${PROJECT_NAME}
+

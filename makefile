@@ -1,0 +1,39 @@
+include ../../make/config.mk
+
+PROJECT_NAME=frrpc
+PROJECT_OBJECTS= \
+	./$(OUTPUT_TEMPORARY_PATH)/./world.pb.o \
+	./$(OUTPUT_TEMPORARY_PATH)/./world_server.o
+
+EXAMPLE_NAME=example_${PROJECT_NAME}
+EXAMPLE_OBJECTS= \
+	./$(OUTPUT_TEMPORARY_PATH)/./world.pb.o \
+	./$(OUTPUT_TEMPORARY_PATH)/./world_example.o \
+
+all : ${PROJECT_OBJECTS}
+	mkdir -p ${BUILD_LIBRARY_PATH}
+	mkdir -p ${BUILD_INCLUDE_PATH}/${PROJECT_NAME}
+	g++ ${COMMON_CFLAGS} ${COMMON_LIBRARY} ${PROJECT_OBJECTS} ${PUBLIC_COMMON_LIBRARY} -fPIC -shared -o ${BUILD_LIBRARY_PATH}/lib${PROJECT_NAME}.so
+	cp -f ${BUILD_LIBRARY_PATH}/lib${PROJECT_NAME}.so ${BUILD_EXECUTE_PATH}/
+	cp -rf *.h ${BUILD_INCLUDE_PATH}/${PROJECT_NAME}
+	$(call BuildEngineScript, ${PROJECT_NAME}, ${FREEDOM_COMMON_IP}, ${FREEDOM_WORLD_PORT})
+
+install:
+	cp ${BUILD_LIBRARY_PATH}/lib${PROJECT_NAME}.so ${OUTPUT_LIB_PATH}
+	cp -rf ${BUILD_INCLUDE_PATH}/${PROJECT_NAME} ${OUTPUT_INCLUDE_PATH}/
+
+clean :
+	rm -rf ${OUTPUT_TEMPORARY_PATH}/*.o
+	rm -f ${BUILD_LIBRARY_PATH}/lib${PROJECT_NAME}.so
+	rm -rf ${BUILD_INCLUDE_PATH}/${PROJECT_NAME}
+	rm -f ${BUILD_EXECUTE_PATH}/${EXAMPLE_NAME}
+
+proto : 
+	protoc --proto_path=./ --cpp_out=./ world.proto	
+
+example : ${EXAMPLE_OBJECTS}
+	mkdir -p ${BUILD_EXECUTE_PATH}
+	g++ ${COMMON_CFLAGS} ${COMMON_LIBRARY} ${EXAMPLE_OBJECTS} ${PUBLIC_COMMON_LIBRARY} -o ${BUILD_EXECUTE_PATH}/${EXAMPLE_NAME}
+	rm -f ${BUILD_EXECUTE_PATH}/${EXAMPLE_NAME}_start.sh
+	$(call BuildExampleScript, ${EXAMPLE_NAME}, ${FREEDOM_COMMON_IP}, ${FREEDOM_WORLD_PORT})
+

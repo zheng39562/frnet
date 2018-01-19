@@ -1,0 +1,23 @@
+include ../../make/config.mk
+
+OPTIONAL_CFLAGS=-D__FRNET_EPOLL -rdynamic
+EXAMPLE_LIBRARY=-lfrnet_epoll
+
+CLIENT_OBJECTS=./$(OUTPUT_TEMPORARY_PATH)/./client.o
+
+SERVER_OBJECTS=./$(OUTPUT_TEMPORARY_PATH)/./server.o
+
+all : server client
+
+client : ${CLIENT_OBJECTS}
+	${COMMON_CXX} ${COMMON_CFLAGS} ${OPTIONAL_CFLAGS} -o ./client ${CLIENT_OBJECTS} ${COMMON_LIBRARY_PATH} ${COMMON_LIBRARY} ${EXAMPLE_LIBRARY}
+
+server : ${SERVER_OBJECTS}
+	${COMMON_CXX} ${COMMON_CFLAGS} ${OPTIONAL_CFLAGS} -o ./server ${SERVER_OBJECTS} ${COMMON_LIBRARY_PATH} ${COMMON_LIBRARY} ${EXAMPLE_LIBRARY}
+
+clean :
+	rm -f ./client 
+	rm -f ./server
+	rm -rf ${OUTPUT_TEMPORARY_PATH}/server.o
+	rm -rf ${OUTPUT_TEMPORARY_PATH}/client.o
+
