@@ -22,11 +22,11 @@
 
 #include <memory.h>
 
-#include "fr_public/pub_tool.h"
+#include "frpublic/pub_tool.h"
 #include "frnet_epoll.h"
 
 using namespace std;
-using namespace fr_public;
+using namespace frpublic;
 
 namespace frnet{
 
@@ -100,7 +100,7 @@ bool NetClient_Epoll::Stop(){// {{{2
 	return true;
 }// }}}2
 
-eNetSendResult NetClient_Epoll::Send(const fr_public::BinaryMemoryPtr& binary){// {{{2
+eNetSendResult NetClient_Epoll::Send(const frpublic::BinaryMemoryPtr& binary){// {{{2
 	return write_queue_.push(binary) ? eNetSendResult_Ok : eNetSendResult_CacheIsFull;
 }// }}}2
 
@@ -308,7 +308,7 @@ bool NetServer_Epoll::Disconnect(Socket sockfd){// {{{2
 	return ret == 0;
 }// }}}2
 
-eNetSendResult NetServer_Epoll::Send(Socket sockfd, const fr_public::BinaryMemoryPtr& binary){// {{{2
+eNetSendResult NetServer_Epoll::Send(Socket sockfd, const frpublic::BinaryMemoryPtr& binary){// {{{2
 	if(is_running_ && !binary->empty()){
 		return write_queue_.push(TcpPacket(sockfd, binary)) ? eNetSendResult_Ok : eNetSendResult_SendFailed;
 	}
@@ -375,7 +375,7 @@ void NetServer_Epoll::EpollProcess(){// {{{2
 }// }}}2
 
 void NetServer_Epoll::WorkProcess(){// {{{2
-	NET_DEBUG_D("Work thread run.");
+	NET_DEBUG_P("Work thread run.");
 
 	EventInfo event_info;
 	while(is_running_){
@@ -384,7 +384,7 @@ void NetServer_Epoll::WorkProcess(){// {{{2
 		}
 
 		if(event_active_queue_.pop(event_info)){
-			NET_DEBUG_D("work thread : receive event. type [" << event_info.type << "]");
+			NET_DEBUG_D("work thread : receive event. socket [" << event_info.cache->sockfd << "] type [" << GetTypeName(event_info.type) << "]");
 
 			switch(event_info.type){
 				case eEpollEventType_Read:
@@ -392,6 +392,12 @@ void NetServer_Epoll::WorkProcess(){// {{{2
 					break;
 				case eEpollEventType_Write:
 					Write(event_info.cache);
+					break;
+				case eEpollEventType_Connect:
+					OnConnect(event_info.cache->sockfd);
+					break;
+				case eEpollEventType_DisConnect:
+					OnDisconnect(event_info.cache->sockfd);
 					break;
 			}
 		}
@@ -439,13 +445,13 @@ void NetServer_Epoll::PerformEpollEventFromListen(const epoll_event& event){// {
 			if(sockfd > 0){
 				int flags = fcntl(sockfd, F_GETFL, 0);
 				fcntl(sockfd, F_SETFL, flags | O_NONBLOCK);
-				/*
+
 				int cache_size = max_cache_size();
 				setsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, (const char*)&cache_size, sizeof(int));
 				setsockopt(sockfd, SOL_SOCKET, SO_SNDBUF, (const char*)&cache_size, sizeof(int));
-				*/
 
-				socket_2cache_ptr_.insert(make_pair(sockfd, SocketCachePtr(new SocketCache(sockfd, max_cache_size()))));
+				SocketCachePtr cache(new SocketCache(sockfd, max_cache_size()));
+				socket_2cache_ptr_.insert(make_pair(sockfd, cache));
 
 				epoll_event event;
 				event.data.fd = sockfd;
@@ -453,6 +459,8 @@ void NetServer_Epoll::PerformEpollEventFromListen(const epoll_event& event){// {
 				if(epoll_ctl(epoll_sockfd_, EPOLL_CTL_ADD, sockfd, &event) == -1){
 					NET_DEBUG_E("更新epoll状态失败。");
 				}
+
+				event_active_queue_.push(EventInfo(eEpollEventType_Connect, cache));
 			}
 			else{
 				if(errno != EINTR && errno != EWOULDBLOCK && errno != EAGAIN){
@@ -471,20 +479,18 @@ void NetServer_Epoll::PerformEpollEventFromListen(const epoll_event& event){// {
 
 void NetServer_Epoll::PerformEpollEvent(const epoll_event& event){// {{{2
 	Socket sockfd = event.data.fd;
-	if((event.events & EPOLLHUP) || (event.events & EPOLLERR)){
-		NET_DEBUG_P("socket disconnect.");
+	auto socket_2cache_ptr_iter = socket_2cache_ptr_.find(sockfd);
+	if(socket_2cache_ptr_iter != socket_2cache_ptr_.end()){
+		if((event.events & EPOLLHUP) || (event.events & EPOLLERR)){
+			// error and disconnect
+			close(sockfd);
 
-		// error and disconnect
-		socket_2cache_ptr_.erase(sockfd);
-		close(sockfd);
-
-		OnDisconnect(sockfd);
-	}
-	else{
-		// read and write
-
-		auto socket_2cache_ptr_iter = socket_2cache_ptr_.find(sockfd);
-		if(socket_2cache_ptr_iter != socket_2cache_ptr_.end()){
+			NET_DEBUG_P("socket disconnect.");
+			event_active_queue_.push(EventInfo(eEpollEventType_Connect, socket_2cache_ptr_iter->second));
+			socket_2cache_ptr_.erase(socket_2cache_ptr_iter);
+		}
+		else{
+			// read and write
 			if((event.events & EPOLLIN) || (event.events & EPOLLPRI)){ 
 				event_active_queue_.push(EventInfo(eEpollEventType_Read, socket_2cache_ptr_iter->second));
 			}
@@ -498,9 +504,9 @@ void NetServer_Epoll::PerformEpollEvent(const epoll_event& event){// {{{2
 				}
 			}
 		}
-		else{
-			NET_DEBUG_P("Can not find sockfd [" << sockfd << "]");
-		}
+	}
+	else{
+		NET_DEBUG_P("Can not find sockfd [" << sockfd << "]");
 	}
 }// }}}2
 
@@ -553,7 +559,10 @@ void NetServer_Epoll::Read(SocketCachePtr cache){// {{{2
 		if(recv_size > 0){
 			cache->read_binary.CopyMemoryFromOut(recv_size);
 		}
-		else if(recv_size == -1){
+		else if(recv_size == 0){
+			OnDisconnect(cache->sockfd);
+		}
+		else{
 			if(errno == EINTR || errno == EWOULDBLOCK || errno == EAGAIN){
 				epoll_event event;
 				event.data.fd = cache->sockfd;

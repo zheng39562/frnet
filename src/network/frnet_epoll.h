@@ -20,8 +20,8 @@
 #include <atomic>
 #include <vector>
 
-#include "fr_template/lock_queue.hpp"
-#include "fr_public/pub_memory.h"
+#include "frtemplate/lock_queue.hpp"
+#include "frpublic/pub_memory.h"
 #include "network/frnet_interface.h"
 
 namespace frnet{
@@ -36,7 +36,7 @@ namespace frnet{
 			virtual bool Start(const std::string& ip, Port port);
 			virtual bool Stop();
 
-			virtual eNetSendResult Send(const fr_public::BinaryMemoryPtr& binary);
+			virtual eNetSendResult Send(const frpublic::BinaryMemoryPtr& binary);
 		private:
 			Socket BuildSocket();
 
@@ -45,11 +45,11 @@ namespace frnet{
 			void ReadProcess();
 			void WriteProcess();
 		private:
-			fr_template::LockQueue<fr_public::BinaryMemoryPtr> write_queue_;
+			frtemplate::LockQueue<frpublic::BinaryMemoryPtr> write_queue_;
 
-			fr_public::BinaryMemoryPtr write_binary_;
+			frpublic::BinaryMemoryPtr write_binary_;
 			// default size of memory : max_cache_size();
-			fr_public::BinaryMemory read_binary_;
+			frpublic::BinaryMemory read_binary_;
 
 			Socket sockfd_;
 			std::thread read_thread_;
@@ -65,6 +65,8 @@ namespace frnet{
 			enum eEpollEventType{// {{{2
 				eEpollEventType_Read = 0,
 				eEpollEventType_Write,
+				eEpollEventType_Connect,
+				eEpollEventType_DisConnect,
 				eEpollEventType_Error,
 			};// }}}2
 
@@ -74,9 +76,9 @@ namespace frnet{
 				}
 
 				Socket sockfd;
-				fr_public::BinaryMemoryPtr write_binary;
-				fr_template::LockQueue<fr_public::BinaryMemoryPtr> write_queue;
-				fr_public::BinaryMemory read_binary;
+				frpublic::BinaryMemoryPtr write_binary;
+				frtemplate::LockQueue<frpublic::BinaryMemoryPtr> write_queue;
+				frpublic::BinaryMemory read_binary;
 				bool can_read;
 				bool can_write;
 				bool is_connect;
@@ -94,10 +96,10 @@ namespace frnet{
 
 			struct TcpPacket{// {{{2
 				TcpPacket():sockfd(0), write_binary(){}
-				TcpPacket(Socket _sockfd, fr_public::BinaryMemoryPtr _binary):sockfd(_sockfd), write_binary(_binary){}
+				TcpPacket(Socket _sockfd, frpublic::BinaryMemoryPtr _binary):sockfd(_sockfd), write_binary(_binary){}
 
 				Socket sockfd;
-				fr_public::BinaryMemoryPtr write_binary;
+				frpublic::BinaryMemoryPtr write_binary;
 			};
 			//}}}2
 
@@ -111,7 +113,7 @@ namespace frnet{
 
 			virtual bool Disconnect(Socket sockfd);
 
-			virtual eNetSendResult Send(Socket sockfd, const fr_public::BinaryMemoryPtr& binary);
+			virtual eNetSendResult Send(Socket sockfd, const frpublic::BinaryMemoryPtr& binary);
 		private:
 			Socket CreateListenSocket();
 
@@ -127,9 +129,19 @@ namespace frnet{
 
 			void Read(SocketCachePtr cache);
 			void Write(SocketCachePtr cache);
+
+			inline std::string GetTypeName(eEpollEventType type)const{
+				switch(type){
+					case eEpollEventType_Read: return "Read";
+					case eEpollEventType_Write: return "Write";
+					case eEpollEventType_Connect: return "Connect";
+					case eEpollEventType_DisConnect: return "Disconnect";
+					default : return "unknow error";
+				}
+			}
 		private:
-			fr_template::LockQueue<TcpPacket> write_queue_;
-			fr_template::LockQueue<EventInfo> event_active_queue_;
+			frtemplate::LockQueue<TcpPacket> write_queue_;
+			frtemplate::LockQueue<EventInfo> event_active_queue_;
 			std::vector<std::thread> work_threads_;
 			std::thread epoll_thread_;
 			std::map<Socket, SocketCachePtr> socket_2cache_ptr_;

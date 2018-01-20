@@ -10,9 +10,14 @@
 #define _frnet_interface_H
 
 #include "frnet_define.h"
-#include "fr_public/pub_memory.h"
+#include "frpublic/pub_memory.h"
+#include "frpublic/pub_log.h"
 
 namespace frnet{
+	// log config {{{1
+	const std::string& log_key();
+	void set_log_config(const std::string& log_key, frpublic::eLogLevel log_level);
+	//}}}1
 
 	// enum {{{1
 	enum eNetSendResult{
@@ -69,13 +74,13 @@ namespace frnet{
 			AstractClient(size_t min_cache_size, size_t max_cache_size);
 			virtual ~AstractClient();
 		public:
-			virtual eNetSendResult Send(const fr_public::BinaryMemoryPtr& binary)=0;
+			virtual eNetSendResult Send(const frpublic::BinaryMemoryPtr& binary)=0;
 		protected:
 			// param[out] read_size : 
 			//	delete date size when function finish. Set 0 If you do not want delete any data.
 			//
 			// retval : close client if return is false.
-			virtual bool OnReceive(const fr_public::BinaryMemory& binary, size_t& read_size)=0;
+			virtual bool OnReceive(const frpublic::BinaryMemory& binary, size_t& read_size)=0;
 	};
 	//}}}1
 
@@ -88,14 +93,15 @@ namespace frnet{
 		public:
 			virtual bool Disconnect(Socket sockfd)=0;
 
-			virtual eNetSendResult Send(Socket sockfd, const fr_public::BinaryMemoryPtr& binary)=0;
+			virtual eNetSendResult Send(Socket sockfd, const frpublic::BinaryMemoryPtr& binary)=0;
 		protected:
 			// param[out] read_size : delete date size when function finish. Set 0 If you do not want delete any data.
 			//
 			// retval : close client if return is false.
-			virtual bool OnReceive(Socket sockfd, const fr_public::BinaryMemory& binary, size_t& read_size)=0;
+			virtual bool OnReceive(Socket sockfd, const frpublic::BinaryMemory& binary, size_t& read_size)=0;
 
-			virtual bool OnDisconnect(Socket sockfd)=0;
+			virtual void OnConnect(Socket sockfd)=0;
+			virtual void OnDisconnect(Socket sockfd)=0;
 
 			inline int32_t max_listen_num(){ return max_listen_num_; }
 		private:

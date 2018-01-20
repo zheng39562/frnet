@@ -1,6 +1,4 @@
-COMMON_LIBRARY=-luuid -lpthread -lrt -ldl -lboost_filesystem -lboost_regex -lfr_public
-COMMON_SQL_LIBRARY=-lfr_sql -lmysqlcppconn 
-COMMON_RPC_LIBRARY=-lprotobuf
+COMMON_LIBRARY=-luuid -lrt -ldl -lpthread -lboost_filesystem -lboost_regex -lfrpublic
 COMMON_LIBRARY_PATH=-L/usr/ -L../../build/lib/
 COMMON_INCLUDE=-I../../src/
 COMMON_MACRO=-D__LINUX
@@ -9,8 +7,7 @@ COMMON_CFLAGS=-g -std=c++11
 COMMON_CXX=g++
 
 OPTIONAL_CFLAGS=
-
-EXAMPLE_LIBRARY=-lhpsocket -lfrrpc
+EXAMPLE_LIBRARY=
 
 BUILD_LIBRARY_PATH=../../build/lib
 BUILD_INCLUDE_PATH=../../build/include

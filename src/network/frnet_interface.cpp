@@ -8,8 +8,22 @@
 **********************************************************/
 #include "frnet_interface.h"
 
+using namespace std;
+
 // namespace frnet{{{1
 namespace frnet{
+
+// log config {{{2
+std::string g_log_key_ = "network";
+const std::string& log_key(){
+	return g_log_key_;
+}
+void set_log_config(const std::string& log_key, frpublic::eLogLevel log_level){
+	g_log_key_ = log_key;
+	frpublic::SingleLogServer::GetInstance()->set_log_level(g_log_key_, log_level);
+}
+
+//}}}2
 
 //====================================================================================================
 NetInterface::NetInterface()

@@ -6,9 +6,9 @@
  * \version 
  * * \author zheng39562@163.com
 **********************************************************/
-#include "fr_public/pub_log.h"
-#include "fr_public/pub_memory.h"
-#include "fr_public/pub_tool.h"
+#include "frpublic/pub_log.h"
+#include "frpublic/pub_memory.h"
+#include "frpublic/pub_tool.h"
 #include "network/frnet_epoll.h"
 
 #include <sys/types.h> 
@@ -16,7 +16,7 @@
 
 using namespace std;
 using namespace frnet;
-using namespace fr_public;
+using namespace frpublic;
 
 // Exit function list. {{{1
 
@@ -59,7 +59,7 @@ class EchoServer : public NetServer_Epoll{
 		EchoServer(size_t min_cache_size, size_t max_cache_size, int32_t _max_listen_num):NetServer_Epoll(min_cache_size, max_cache_size, _max_listen_num){ }
 		virtual ~EchoServer()=default;
 	protected:
-		virtual bool OnReceive(Socket sockfd, const fr_public::BinaryMemory& binary, size_t& read_size){
+		virtual bool OnReceive(Socket sockfd, const frpublic::BinaryMemory& binary, size_t& read_size){
 			DEBUG_D("receive [" << string((const char*)binary.buffer(), binary.size()) << "]");
 			BinaryMemoryPtr write_binary(new BinaryMemory(binary));
 			if(Send(sockfd, write_binary) == eNetSendResult_Ok){;
@@ -80,17 +80,22 @@ class EchoServer : public NetServer_Epoll{
 			DEBUG_D("Receive error [" << error.err_no << "]");
 		}
 
-		virtual bool OnDisconnect(Socket sockfd){
+		virtual void OnConnect(Socket sockfd){
+			DEBUG_D("Connect socket [" << sockfd << "]");
+		}
+
+		virtual void OnDisconnect(Socket sockfd){
 			DEBUG_D("Disconnect socket [" << sockfd << "]");
-			return true;
 		}
 };
 //}}}1
 
 int main(int argc, char* argv[]){
-	fr_public::SingleLogServer::GetInstance()->InitLog("./log", 10 * 1024);
-	fr_public::SingleLogServer::GetInstance()->set_log_level("server", fr_public::eLogLevel_Program);
-	fr_public::SingleLogServer::GetInstance()->set_default_log_key("server");
+	frpublic::SingleLogServer::GetInstance()->InitLog("./log", 10 * 1024);
+	frpublic::SingleLogServer::GetInstance()->set_log_level("server", frpublic::eLogLevel_Program);
+	frpublic::SingleLogServer::GetInstance()->set_default_log_key("server");
+	frnet::set_log_config("server", frpublic::eLogLevel_Program);
+
 
 	EchoServer server;
 	if(server.Start("127.0.0.1", 12345)){
