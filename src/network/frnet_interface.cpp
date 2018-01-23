@@ -26,67 +26,64 @@ void set_log_config(const std::string& log_key, frpublic::eLogLevel log_level){
 //}}}2
 
 //====================================================================================================
-NetInterface::NetInterface()
-	:min_cache_size_(1 * 1024), 
-	 max_cache_size_(64 * 1024)
-{}
-
-NetInterface::NetInterface(size_t min_cache_size, size_t max_cache_size)
-	:min_cache_size_(min_cache_size), 
-	 max_cache_size_(max_cache_size)
+NetInterface::NetInterface(NetListen* listen)
+	:read_cache_size_(4 * 1024), 
+	 write_cache_size_(4 * 1024),
+	 listen_(listen)
 {}
 
 NetInterface::~NetInterface(){ }
 
 
 //====================================================================================================
-AstractClient::AstractClient()
-	:NetInterface()
+NetClient::NetClient(NetListen* listen)
+	:NetInterface(listen)
 {}
 
-AstractClient::AstractClient(size_t min_cache_size, size_t max_cache_size)
-	:NetInterface(min_cache_size, max_cache_size)
-{}
-AstractClient::~AstractClient(){}
+NetClient::~NetClient(){}
 
 
 //====================================================================================================
-AstractServer::AstractServer()
-	:NetInterface(), max_listen_num_(65535)
+NetServer::NetServer(NetListen* listen)
+	:NetInterface(listen), 
+	 max_listen_num_(65535),
+	 work_thread_num_(4)
 {}
 
-AstractServer::AstractServer(size_t min_cache_size, size_t max_cache_size, int32_t max_listen_num)
-	 :NetInterface(min_cache_size, max_cache_size), 
-	  max_listen_num_(max_listen_num)
-{}
+NetServer::~NetServer(){} 
 
-AstractServer::~AstractServer(){}
-
-}
+} // namespace frnet
 // }}}1
 
-/*
-
-//TCP Creator : boost::asio {{{2
+// Network Creator : boost::asio {{{2
 #ifdef __TCP_USE_ASIO
 
 #include "frnet_tcp_asio.h"
 
 // use boost::asio
-frnet::AstractClient* TcpClientInstance(){ return new frnet::TcpClient_Asio(); }
-frnet::AstractServer* TcpServerInstance(){ return new frnet::TcpServer_Asio(); }
+#include "frnet_tcp_asio.h"
+
+NetClient* CreateNetClient(frnet::NetListen* listen){ return NULL; }
+NetServer* CreateNetServer(frnet::NetListen* listen){ return NULL; }
 
 //}}}2
 
-//TCP Creator : code self(linux epoll.) {{{2
-#elif __TCP_USE_SELF
-frnet::AstractClient* TcpClientInstance(){ return new frnet::TcpClient_Epoll(); }
-frnet::AstractServer* TcpServerInstance(){ return new frnet::TcpServer_Epoll(); }
+// Network Creator : code self(linux epoll.) {{{2
+#elif __FRNET_EPOLL
+
+#include "frnet_epoll.h"
+frnet::NetClient* CreateNetClient(frnet::NetListen* listen){ return new frnet::NetClient_Epoll(listen); }
+frnet::NetServer* CreateNetServer(frnet::NetListen* listen){ return new frnet::NetServer_Epoll(listen); }
 
 //// }}}2
 
+// else {{{2
 #else
-#endif
-*/
 
+
+NetClient* CreateNetClient(frnet::NetListen* listen){ return NULL; }
+NetServer* CreateNetServer(frnet::NetListen* listen){ return NULL; }
+//}}}2
+
+#endif
 

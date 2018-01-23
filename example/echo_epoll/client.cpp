@@ -53,33 +53,37 @@ bool IsAskedToQuit(){
 //}}}1
 
 //
-class EchoClient : public NetClient_Epoll{
+class EchoClient : public NetListen{
 	public:
-		EchoClient():NetClient_Epoll(){}
-		EchoClient(size_t min_cache_size, size_t max_cache_size):NetClient_Epoll(min_cache_size, max_cache_size){ }
-		virtual ~EchoClient()=default;
-	protected:
-		virtual bool OnReceive(const frpublic::BinaryMemory& binary, size_t& read_size){
-			DEBUG_D("receive [" << string((const char*)binary.buffer(), binary.size()) << "]");
+		EchoClient():net_client_(CreateNetClient(this)){}
+		virtual ~EchoClient(){ if(net_client_){ delete net_client_; net_client_ = NULL; } }
+	public:
+		inline bool Start(const std::string& ip, Port port){ return net_client_->Start(ip, port); }
+		inline bool Stop(){ return net_client_->Stop(); }
 
+		inline eNetSendResult Send(const frpublic::BinaryMemoryPtr& binary){ return net_client_->Send(binary); }
+	protected:
+		virtual bool OnReceive(Socket sockfd, const frpublic::BinaryMemory& binary, size_t& read_size){
+			DEBUG_D("receive [" << string((const char*)binary.buffer(), binary.size()) << "]");
 			read_size = binary.size();
 
 			DEBUG_D("Receive res, Disconnect.");
-
 			// close connection when return false;
 			return false;
 		}
 
-		virtual void OnClose(){
-			DEBUG_D("Stop Server.");
+		virtual void OnConnect(Socket sockfd){ }
+		virtual void OnDisconnect(Socket sockfd){ }
 
-			// receive close connection, call quit function.
-			AskToQuit();
+		virtual void OnClose(){ 
+			DEBUG_D("Stop Server."); 
+			AskToQuit(); 
 		}
-
 		virtual void OnError(const NetError& error){
 			DEBUG_D("Receive error [" << error.err_no << "]");
 		}
+	private:
+		NetClient* net_client_;
 };
 
 int main(int argc, char* argv[]){

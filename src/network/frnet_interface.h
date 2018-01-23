@@ -14,6 +14,7 @@
 #include "frpublic/pub_log.h"
 
 namespace frnet{
+
 	// log config {{{1
 	const std::string& log_key();
 	void set_log_config(const std::string& log_key, frpublic::eLogLevel log_level);
@@ -41,61 +42,17 @@ namespace frnet{
 	};
 	// }}}1
 
-	// class NetInterface {{{1
-	class NetInterface{
+	// class NetListen {{{1
+	class NetInterface;
+	class NetListen{
 		public:
-			NetInterface();
-			NetInterface(size_t min_cache_size, size_t max_cache_size);
-			virtual ~NetInterface();
+			friend class NetInterface;
 		public:
-			virtual bool Start(const std::string& ip, Port port)=0;
-			virtual bool Stop()=0;
-
-			virtual void OnClose()=0;
-
-			// include all error : read, write, disconnect and so on.
-			virtual void OnError(const NetError& net_error)=0;
-
-			inline size_t set_min_cache_size(size_t min_cache_size){ min_cache_size_ = min_cache_size; }
-			inline size_t min_cache_size()const{ return min_cache_size_; }
-
-			inline size_t set_max_cache_size(size_t max_cache_size){ max_cache_size_ = max_cache_size; }
-			inline size_t max_cache_size()const{ return max_cache_size_; }
+			NetListen()=default;
+			virtual ~NetListen()=default;
 		private:
-			size_t min_cache_size_;
-			size_t max_cache_size_;
-	};
-	//}}}1
-
-	// class AstractClient {{{1
-	class AstractClient : public NetInterface{
-		public:
-			AstractClient();
-			AstractClient(size_t min_cache_size, size_t max_cache_size);
-			virtual ~AstractClient();
-		public:
-			virtual eNetSendResult Send(const frpublic::BinaryMemoryPtr& binary)=0;
-		protected:
 			// param[out] read_size : 
 			//	delete date size when function finish. Set 0 If you do not want delete any data.
-			//
-			// retval : close client if return is false.
-			virtual bool OnReceive(const frpublic::BinaryMemory& binary, size_t& read_size)=0;
-	};
-	//}}}1
-
-	// class AstractServer {{{1
-	class AstractServer : public NetInterface{
-		public:
-			AstractServer();
-			AstractServer(size_t min_cache_size, size_t max_cache_size, int32_t max_listen_num);
-			virtual ~AstractServer();
-		public:
-			virtual bool Disconnect(Socket sockfd)=0;
-
-			virtual eNetSendResult Send(Socket sockfd, const frpublic::BinaryMemoryPtr& binary)=0;
-		protected:
-			// param[out] read_size : delete date size when function finish. Set 0 If you do not want delete any data.
 			//
 			// retval : close client if return is false.
 			virtual bool OnReceive(Socket sockfd, const frpublic::BinaryMemory& binary, size_t& read_size)=0;
@@ -103,13 +60,86 @@ namespace frnet{
 			virtual void OnConnect(Socket sockfd)=0;
 			virtual void OnDisconnect(Socket sockfd)=0;
 
-			inline int32_t max_listen_num(){ return max_listen_num_; }
+			virtual void OnClose()=0;
+
+			// include all error : read, write, disconnect and so on.
+			virtual void OnError(const NetError& net_error)=0;
+	};
+	//}}}1
+	
+	// class NetInterface {{{1
+	class NetInterface{
+		public:
+			NetInterface(NetListen* listen);
+			virtual ~NetInterface();
+		public:
+			// configure must set before start.
+			// Is you want use configure in a running object.You must set and restart it.
+			// Confiure :
+			//	* set read/write cache.
+			virtual bool Start(const std::string& ip, Port port)=0;
+			virtual bool Stop()=0;
+
+			inline size_t set_read_cache_size(size_t read_cache_size){ read_cache_size_ = read_cache_size; }
+			inline size_t read_cache_size()const{ return read_cache_size_; }
+
+			inline size_t set_write_cache_size(size_t write_cache_size){ write_cache_size_ = write_cache_size; }
+			inline size_t write_cache_size()const{ return write_cache_size_; }
+		protected:
+			inline bool OnReceive(Socket sockfd, const frpublic::BinaryMemory& binary, size_t& read_size){ return listen_->OnReceive(sockfd, binary, read_size); }
+			inline void OnConnect(Socket sockfd){ return listen_->OnConnect(sockfd); }
+			inline void OnDisconnect(Socket sockfd){ return listen_->OnDisconnect(sockfd); }
+
+			inline void OnClose(){ return listen_->OnClose(); }
+
+			// include all error : read, write, disconnect and so on.
+			inline void OnError(const NetError& net_error){ return listen_->OnError(net_error); }
+		private:
+			size_t write_cache_size_;
+			size_t read_cache_size_;
+			NetListen* listen_;
+	};
+	//}}}1
+
+	// class NetClient {{{1
+	class NetClient : public NetInterface{
+		public:
+			NetClient(NetListen* listen);
+			virtual ~NetClient();
+		public:
+			virtual eNetSendResult Send(const frpublic::BinaryMemoryPtr& binary)=0;
+	};
+	//}}}1
+
+	// class NetServer {{{1
+	class NetServer : public NetInterface{
+		public:
+			NetServer(NetListen* listen);
+			virtual ~NetServer();
+		public:
+			virtual bool Disconnect(Socket sockfd)=0;
+
+			virtual eNetSendResult Send(Socket sockfd, const frpublic::BinaryMemoryPtr& binary)=0;
+
+			// set num before start.
+			inline void set_work_thread_num(int32_t work_thread_num){ work_thread_num_ = work_thread_num; }
+			inline int32_t work_thread_num()const { return work_thread_num_; }
+		protected:
+			inline int32_t max_listen_num()const { return max_listen_num_; }
 		private:
 			int32_t max_listen_num_;
+			int32_t work_thread_num_;
 	};
 	//}}}1
 	
 }
+
+// Create Function {{{1
+extern "C"{
+	frnet::NetClient* CreateNetClient(frnet::NetListen* listen);
+	frnet::NetServer* CreateNetServer(frnet::NetListen* listen);
+}
+//}}}1
 
 #endif 
 

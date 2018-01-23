@@ -33,8 +33,8 @@ namespace frnet{
 // Class NetClient_Epoll {{{1
 
 // NetClient_Epoll {{{2
-NetClient_Epoll::NetClient_Epoll()
-	:AstractClient(),
+NetClient_Epoll::NetClient_Epoll(NetListen* listen)
+	:NetClient(listen),
 	 write_queue_(),
 	 write_binary_(),
 	 read_binary_(),
@@ -43,20 +43,7 @@ NetClient_Epoll::NetClient_Epoll()
 	 write_thread_(),
 	 is_connect_(false)
 {
-	read_binary_.reserve(max_cache_size());
-}// }}}2
-
-NetClient_Epoll::NetClient_Epoll(size_t _min_cache_size, size_t _max_cache_size)// {{{2
-	:AstractClient(_min_cache_size, _max_cache_size),
-	 write_queue_(),
-	 write_binary_(),
-	 read_binary_(),
-	 sockfd_(0),
-	 read_thread_(),
-	 write_thread_(),
-	 is_connect_(false)
-{
-	read_binary_.reserve(max_cache_size());
+	read_binary_.reserve(write_cache_size());
 }// }}}2
 
 NetClient_Epoll::~NetClient_Epoll(){// {{{2
@@ -110,9 +97,11 @@ Socket NetClient_Epoll::BuildSocket(){// {{{2
 		int flags = fcntl(sockfd, F_GETFL, 0);
 		fcntl(sockfd, F_SETFL, flags & ~O_NONBLOCK);
 
-		int cache_size = max_cache_size();
-		setsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, (const void*)&cache_size, sizeof(int));
-		setsockopt(sockfd, SOL_SOCKET, SO_SNDBUF, (const void*)&cache_size, sizeof(int));
+		int cache_size(0);
+		cache_size = read_cache_size();
+		setsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, (const char*)&cache_size, sizeof(int));
+		cache_size = write_cache_size();
+		setsockopt(sockfd, SOL_SOCKET, SO_SNDBUF, (const char*)&cache_size, sizeof(int));
 
 		NET_DEBUG_D("Build socket : [" << sockfd << "]. Block and cache [" << cache_size << "]");
 	}
@@ -127,13 +116,17 @@ bool NetClient_Epoll::TryConnect(Socket sockfd, const std::string& ip, Port port
 	inet_pton(AF_INET, ip.c_str(), &address.sin_addr);
 	address.sin_port = htons(port);
 
-	return ::connect(sockfd, (struct sockaddr *)&address, sizeof(address)) == 0;
+	if(::connect(sockfd, (struct sockaddr *)&address, sizeof(address)) != 0){
+		NET_DEBUG_E("Fail to call connect function. errno[" << errno << "] ip:port [" << ip << ":" << port << "].");
+		return false;
+	}
+	return true;
 }// }}}2
 
 void NetClient_Epoll::ReadProcess(){// {{{2
 	auto CallOnReceive = [&](){
 		size_t read_size(0);
-		if(!OnReceive(read_binary_, read_size)){;
+		if(!OnReceive(sockfd_, read_binary_, read_size)){;
 			DEBUG_W("Receive has error. Close client.");
 			close(sockfd_);
 		}
@@ -217,8 +210,8 @@ void NetClient_Epoll::WriteProcess(){// {{{2
 // Class NetServer_Epoll {{{1
 //
 
-NetServer_Epoll::NetServer_Epoll()// {{{2
-	:AstractServer(),
+NetServer_Epoll::NetServer_Epoll(NetListen* listen)// {{{2
+	:NetServer(listen),
 	 write_queue_(),
 	 event_active_queue_(),
 	 work_threads_(),
@@ -226,25 +219,9 @@ NetServer_Epoll::NetServer_Epoll()// {{{2
 	 socket_2cache_ptr_(),
 	 listen_sockfd_(0),
 	 epoll_sockfd_(0),
-	 is_running_(false),
-	 work_thread_num_(4)
+	 is_running_(false)
 {
-	;
-}//}}}2
-
-NetServer_Epoll::NetServer_Epoll(size_t _min_cache_size, size_t _max_cache_size, int32_t _max_listen_num, size_t _work_thread_num)// {{{2
-	:AstractServer(_min_cache_size, _max_cache_size, _max_listen_num),
-	 write_queue_(),
-	 event_active_queue_(),
-	 work_threads_(),
-	 epoll_thread_(),
-	 socket_2cache_ptr_(),
-	 listen_sockfd_(0),
-	 epoll_sockfd_(0),
-	 is_running_(false),
-	 work_thread_num_(_work_thread_num)
-{
-	;
+	set_work_thread_num(4);
 }//}}}2
 
 NetServer_Epoll::~NetServer_Epoll(){// {{{2
@@ -276,10 +253,11 @@ bool NetServer_Epoll::Start(const std::string& ip, Port port){// {{{2
 	}
 
 	epoll_thread_ = thread(&NetServer_Epoll::EpollProcess, this);
-	for(int index = 0; index < work_thread_num_; ++index){
+	for(int index = 0; index < work_thread_num(); ++index){
 		work_threads_.push_back(thread(&NetServer_Epoll::WorkProcess, this));
 	}
 
+	NET_DEBUG_P("Server is listening [" << ip << ":" << port << "]");
 	return true;
 }// }}}2
 
@@ -446,11 +424,13 @@ void NetServer_Epoll::PerformEpollEventFromListen(const epoll_event& event){// {
 				int flags = fcntl(sockfd, F_GETFL, 0);
 				fcntl(sockfd, F_SETFL, flags | O_NONBLOCK);
 
-				int cache_size = max_cache_size();
+				int cache_size(0);
+				cache_size = read_cache_size();
 				setsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, (const char*)&cache_size, sizeof(int));
+				cache_size = write_cache_size();
 				setsockopt(sockfd, SOL_SOCKET, SO_SNDBUF, (const char*)&cache_size, sizeof(int));
 
-				SocketCachePtr cache(new SocketCache(sockfd, max_cache_size()));
+				SocketCachePtr cache(new SocketCache(sockfd, write_cache_size()));
 				socket_2cache_ptr_.insert(make_pair(sockfd, cache));
 
 				epoll_event event;

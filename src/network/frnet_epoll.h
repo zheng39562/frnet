@@ -27,10 +27,9 @@
 namespace frnet{
 
 	// NetClient_Epoll {{{1
-	class NetClient_Epoll : public AstractClient{
+	class NetClient_Epoll : public NetClient{
 		public:
-			NetClient_Epoll();
-			NetClient_Epoll(size_t _min_cache_size, size_t _max_cache_size);
+			NetClient_Epoll(NetListen* listen);
 			virtual ~NetClient_Epoll();
 		public:
 			virtual bool Start(const std::string& ip, Port port);
@@ -48,7 +47,7 @@ namespace frnet{
 			frtemplate::LockQueue<frpublic::BinaryMemoryPtr> write_queue_;
 
 			frpublic::BinaryMemoryPtr write_binary_;
-			// default size of memory : max_cache_size();
+			// default size of memory : write_cache_size();
 			frpublic::BinaryMemory read_binary_;
 
 			Socket sockfd_;
@@ -60,7 +59,7 @@ namespace frnet{
 	//}}}1
 
 	// NetServer_Epoll {{{1
-	class NetServer_Epoll : public AstractServer{
+	class NetServer_Epoll : public NetServer{
 		public:
 			enum eEpollEventType{// {{{2
 				eEpollEventType_Read = 0,
@@ -71,8 +70,8 @@ namespace frnet{
 			};// }}}2
 
 			struct SocketCache{// {{{2
-				SocketCache(Socket _sockfd, int32_t max_cache_size):sockfd(_sockfd),write_binary(),write_queue(),read_binary(),can_read(true),can_write(true),is_connect(true){
-					read_binary.reserve(max_cache_size);
+				SocketCache(Socket _sockfd, int32_t write_cache_size):sockfd(_sockfd),write_binary(),write_queue(),read_binary(),can_read(true),can_write(true),is_connect(true){
+					read_binary.reserve(write_cache_size);
 				}
 
 				Socket sockfd;
@@ -104,8 +103,7 @@ namespace frnet{
 			//}}}2
 
 		public:
-			NetServer_Epoll();
-			NetServer_Epoll(size_t _min_cache_size, size_t _max_cache_size, int32_t _max_listen_num, size_t _work_thread_num = 4);
+			NetServer_Epoll(NetListen* listen);
 			virtual ~NetServer_Epoll();
 		public:
 			virtual bool Start(const std::string& ip, Port port);
@@ -148,7 +146,6 @@ namespace frnet{
 			Socket listen_sockfd_;
 			Socket epoll_sockfd_;
 			std::atomic<bool> is_running_;
-			size_t work_thread_num_; 
 	};
 	//}}}1
 

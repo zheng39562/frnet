@@ -1,6 +1,6 @@
 include ../../make/config.mk
 
-OPTIONAL_CFLAGS=-D__FRNET_EPOLL -rdynamic
+OPTIONAL_CFLAGS=-D__FRNET_EPOLL
 EXAMPLE_LIBRARY=-lfrnet_epoll
 
 CLIENT_OBJECTS=./$(OUTPUT_TEMPORARY_PATH)/./client.o

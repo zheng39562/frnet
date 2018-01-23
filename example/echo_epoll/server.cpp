@@ -53,16 +53,18 @@ bool IsAskedToQuit(){
 //}}}1
 
 // class EchoServer {{{1
-class EchoServer : public NetServer_Epoll{
+class EchoServer : public NetListen{
 	public:
-		EchoServer():NetServer_Epoll(){}
-		EchoServer(size_t min_cache_size, size_t max_cache_size, int32_t _max_listen_num):NetServer_Epoll(min_cache_size, max_cache_size, _max_listen_num){ }
-		virtual ~EchoServer()=default;
+		EchoServer():net_server_(CreateNetServer(this)){}
+		virtual ~EchoServer(){ if(net_server_){ delete net_server_; net_server_ = NULL; } }
+	public:
+		inline bool Start(const std::string& ip, Port port){ return net_server_->Start(ip, port); }
+		inline bool Stop(){ return net_server_->Stop(); }
 	protected:
 		virtual bool OnReceive(Socket sockfd, const frpublic::BinaryMemory& binary, size_t& read_size){
 			DEBUG_D("receive [" << string((const char*)binary.buffer(), binary.size()) << "]");
 			BinaryMemoryPtr write_binary(new BinaryMemory(binary));
-			if(Send(sockfd, write_binary) == eNetSendResult_Ok){;
+			if(net_server_->Send(sockfd, write_binary) == eNetSendResult_Ok){;
 				read_size = binary.size();
 				return true;
 			}
@@ -87,6 +89,8 @@ class EchoServer : public NetServer_Epoll{
 		virtual void OnDisconnect(Socket sockfd){
 			DEBUG_D("Disconnect socket [" << sockfd << "]");
 		}
+	private:
+		NetServer* net_server_;
 };
 //}}}1
 
@@ -95,7 +99,6 @@ int main(int argc, char* argv[]){
 	frpublic::SingleLogServer::GetInstance()->set_log_level("server", frpublic::eLogLevel_Program);
 	frpublic::SingleLogServer::GetInstance()->set_default_log_key("server");
 	frnet::set_log_config("server", frpublic::eLogLevel_Program);
-
 
 	EchoServer server;
 	if(server.Start("127.0.0.1", 12345)){

@@ -1,6 +1,6 @@
 include ../../make/config.mk
 
-OPTIONAL_CFLAGS=-fPIC -D__FRNET_EPOLL -rdynamic
+OPTIONAL_CFLAGS=-fPIC -D__FRNET_EPOLL
 
 PROJECT_NAME=frnet
 
