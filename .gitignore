@@ -6,4 +6,7 @@ core.*
 *.log
 client
 server
+send_receive_packet
+max_socket
+free_socket
 

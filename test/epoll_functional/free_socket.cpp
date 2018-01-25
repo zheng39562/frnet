@@ -1,5 +1,5 @@
 /**********************************************************
- *  \file max_socket.cpp
+ *  \file free_socket.cpp
  *  \brief
  *  \note	注意事项： 
  * 
@@ -125,16 +125,13 @@ void ServerProcess(){
 	}
 
 	DEBUG_I("server running.");
-	while((max_socket_num_ != server.connect_count_) || (max_socket_num_ != server.disconnect_count_)){
+	while(!IsAskedToQuit()){
 		FrSleep(100);
 	}
 
 	if(!server.Stop()){
 		DEBUG_E("Fail to stop server.");
 	}
-
-	DEBUG_I("server accept scoket [" << server.connect_count_ << "]");
-	DEBUG_I("server disconnect scoket ["<< server.disconnect_count_ << "]");
 }
 //}}}1
 
@@ -155,17 +152,6 @@ void ClientProcess(){
 	}
 
 	DEBUG_D("client running.");
-
-	string msg("Hello tcp.....");
-	BinaryMemoryPtr binary(new BinaryMemory());
-	binary->add(msg.c_str(), msg.size());
-	for(auto& client : clients){
-		if(client->Send(binary) != eNetSendResult_Ok){
-			DEBUG_E("Fail to send msg.");
-			return ;
-		}
-	}
-
 	bool is_quit(false);
 	while(!is_quit){
 		FrSleep(100);
@@ -187,6 +173,10 @@ void ClientProcess(){
 		client = NULL;
 	}
 
+	while(!IsAskedToQuit()){
+		FrSleep(100);
+	}
+
 	DEBUG_D("All client is Stop. client receive close callback ["<< TestClient::client_disconnect_count() << "]");
 }
 //}}}1
@@ -195,9 +185,9 @@ void ClientProcess(){
 int main(int argc, char* argv[]){
 	// check your ulimit -n : confirm it is bigger than number of test.
 	
-	string key("max_socket_client");
+	string key("free_socket_client");
 
-	pid_t pid = fork();
+	int pid = argc > 1 ? 0 : 123;
 	if(pid < 0){
 		DEBUG_E("error");
 	}
@@ -213,7 +203,7 @@ int main(int argc, char* argv[]){
 		ClientProcess();
 	}
 	else{
-		key = "max_socket_server";
+		key = "free_socket_server";
 
 		frpublic::SingleLogServer::GetInstance()->InitLog("./log", 10 * 1024 * 1024);
 		frpublic::SingleLogServer::GetInstance()->set_log_level(key, frpublic::eLogLevel_Info);

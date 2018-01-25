@@ -21,6 +21,7 @@
 #endif
 
 #include <memory.h>
+#include <queue>
 
 #include "frpublic/pub_tool.h"
 #include "frnet_epoll.h"
@@ -57,6 +58,8 @@ bool NetClient_Epoll::Start(const std::string& ip, Port port){// {{{2
 		NET_DEBUG_D("connection is success. Create work threads(read and send).");
 		read_thread_ = thread(&NetClient_Epoll::ReadProcess, this);
 		write_thread_ = thread(&NetClient_Epoll::WriteProcess, this);
+
+		OnConnect(sockfd_);
 	}
 	else{
 		NET_DEBUG_E("Fail to connect.");
@@ -102,6 +105,11 @@ Socket NetClient_Epoll::BuildSocket(){// {{{2
 		setsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, (const char*)&cache_size, sizeof(int));
 		cache_size = write_cache_size();
 		setsockopt(sockfd, SOL_SOCKET, SO_SNDBUF, (const char*)&cache_size, sizeof(int));
+		struct timeval fd_time_out;
+		fd_time_out.tv_sec = 0;
+		fd_time_out.tv_usec = 50 * 1000;
+		setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &fd_time_out, sizeof(fd_time_out));
+		setsockopt(sockfd, SOL_SOCKET, SO_SNDTIMEO, &fd_time_out, sizeof(fd_time_out));
 
 		NET_DEBUG_D("Build socket : [" << sockfd << "]. Block and cache [" << cache_size << "]");
 	}
@@ -124,13 +132,14 @@ bool NetClient_Epoll::TryConnect(Socket sockfd, const std::string& ip, Port port
 }// }}}2
 
 void NetClient_Epoll::ReadProcess(){// {{{2
-	auto CallOnReceive = [&](){
+	auto CallOnReceive = [&]()->bool{
 		size_t read_size(0);
 		if(!OnReceive(sockfd_, read_binary_, read_size)){;
 			DEBUG_W("Receive has error. Close client.");
-			close(sockfd_);
+			return false;
 		}
 		read_binary_.del(read_size);
+		return true;
 	};
 
 	read_binary_.clear();
@@ -139,37 +148,41 @@ void NetClient_Epoll::ReadProcess(){// {{{2
 			int re_call_times(0);
 			do{
 				FrSleep(pow(10, re_call_times++));
-				CallOnReceive();
+				is_connect_ = (is_connect_ && CallOnReceive());
 
 				if(re_call_times >= 4){
-					if(close(sockfd_) < 0){
-						DEBUG_E("Fail to close socket. errno [" << errno << "]");
-					}
 					read_binary_.clear();
+					is_connect_ = false;
 				}
-			} while(read_binary_.usable_size() == 0);
-		}
-
-		int recv_size = ::recv(sockfd_, read_binary_.buffer(), read_binary_.usable_size(), 0);
-		if(recv_size > 0){
-			read_binary_.CopyMemoryFromOut(recv_size);
-			CallOnReceive();
-		}
-		else if(recv_size == 0){
-			is_connect_ = false;
+			} while(is_connect_ && read_binary_.usable_size() == 0);
 		}
 		else{
-			if(errno == EINTR || errno == EWOULDBLOCK || errno == EAGAIN){
-				FrSleep(1);
+			int recv_size = ::recv(sockfd_, read_binary_.buffer(), read_binary_.usable_size(), 0);
+			if(recv_size > 0){
+				read_binary_.CopyMemoryFromOut(recv_size);
+				is_connect_ = is_connect_ && CallOnReceive();
+			}
+			else if(recv_size == 0){
+				is_connect_ = false;
 			}
 			else{
-				// EBADF, EFAULT, EINVAL, ENOMEM, ENOTCONN
-				is_connect_ = false;
+				if(errno == EINTR || errno == EWOULDBLOCK || errno == EAGAIN){
+					FrSleep(1);
+				}
+				else{
+					// EBADF, EFAULT, EINVAL, ENOMEM, ENOTCONN
+					is_connect_ = false;
+				}
 			}
 		}
 	}
 
 	DEBUG_D("Active Close Callback.");
+	if(close(sockfd_) < 0){
+		NET_DEBUG_D("Fail to close socket. errno [" << errno << "]");
+	}
+	sockfd_ = 0;
+
 	OnClose();
 }// }}}2
 
@@ -317,9 +330,8 @@ void NetServer_Epoll::EpollProcess(){// {{{2
 	event.data.fd = listen_sockfd_;
 	event.events = EPOLLIN | EPOLLOUT | EPOLLET;
 	if(epoll_ctl(epoll_sockfd_, EPOLL_CTL_ADD, listen_sockfd_, &event) == -1){
-		is_running_ = false;
 		NET_DEBUG_E("Fail to add listen sockfd to epoll.");
-		close(epoll_sockfd_);
+		ClearVariables();
 		return ;
 	}
 
@@ -331,6 +343,7 @@ void NetServer_Epoll::EpollProcess(){// {{{2
 	}
 	
 	int32_t next_fetch_number(300);
+	queue<Socket> disconnect_socket_queue;
 	while(is_running_){
 		memset(events, 0, event_length * sizeof(epoll_event));
 		int recv_event_num = epoll_wait(epoll_sockfd_, events, event_length, 50); // 50ms timeout
@@ -344,11 +357,17 @@ void NetServer_Epoll::EpollProcess(){// {{{2
 			}
 		}
 
+		// clear disconnect scoket.
+		disconnect_socket_queue_.swap(disconnect_socket_queue);
+		while(!disconnect_socket_queue.empty()){
+			socket_2cache_ptr_.erase(disconnect_socket_queue.front());
+			disconnect_socket_queue.pop();
+		}
+
 		RecvMessageFromWriteQueue(next_fetch_number);
 	}
-
-	close(epoll_sockfd_);
 	
+	ClearVariables();
 	NET_DEBUG_P("Epoll thread Stop.");
 }// }}}2
 
@@ -374,7 +393,8 @@ void NetServer_Epoll::WorkProcess(){// {{{2
 				case eEpollEventType_Connect:
 					OnConnect(event_info.cache->sockfd);
 					break;
-				case eEpollEventType_DisConnect:
+				case eEpollEventType_Disconnect:
+					disconnect_socket_queue_.push(event_info.cache->sockfd);
 					OnDisconnect(event_info.cache->sockfd);
 					break;
 			}
@@ -406,8 +426,6 @@ void NetServer_Epoll::RecvMessageFromWriteQueue(int32_t number){// {{{2
 void NetServer_Epoll::PerformEpollEventFromListen(const epoll_event& event){// {{{2
 	// error and disconnect
 	if((event.events & EPOLLHUP) || (event.events & EPOLLERR)){
-		close(listen_sockfd_);
-
 		OnClose();
 		ClearVariables();
 		return;
@@ -466,7 +484,7 @@ void NetServer_Epoll::PerformEpollEvent(const epoll_event& event){// {{{2
 			close(sockfd);
 
 			NET_DEBUG_P("socket disconnect.");
-			event_active_queue_.push(EventInfo(eEpollEventType_Connect, socket_2cache_ptr_iter->second));
+			event_active_queue_.push(EventInfo(eEpollEventType_Disconnect, socket_2cache_ptr_iter->second));
 			socket_2cache_ptr_.erase(socket_2cache_ptr_iter);
 		}
 		else{
@@ -494,6 +512,10 @@ void NetServer_Epoll::ClearVariables(){// {{{2
 	NET_DEBUG_P("Clear variables.");
 
 	is_running_ = false;
+
+	for(auto& socket_2cache_ptr_item : socket_2cache_ptr_){
+		close(socket_2cache_ptr_item.first);
+	}
 	socket_2cache_ptr_.clear();
 
 	if(listen_sockfd_ > 0){
@@ -523,13 +545,14 @@ void NetServer_Epoll::Read(SocketCachePtr cache){// {{{2
 		if(recv_size > 0 || cache->read_binary.usable_size() == 0){
 			size_t read_size(0);
 			if(!OnReceive(cache->sockfd, cache->read_binary, read_size)){
-				DEBUG_W("Receive has error. Close socket [" << cache->sockfd << "]");
+				NET_DEBUG_W("Receive has error. Close socket [" << cache->sockfd << "]");
 				close(cache->sockfd);
 				return ;
 			}
 			cache->read_binary.del(read_size);
 
 			if(cache->read_binary.usable_size() == 0){
+				NET_DEBUG_W("Close [" << cache->sockfd << "]. Reason : cache is full. And No one to fetch this cache.");
 				close(cache->sockfd);
 				return ;
 			}
@@ -540,6 +563,8 @@ void NetServer_Epoll::Read(SocketCachePtr cache){// {{{2
 			cache->read_binary.CopyMemoryFromOut(recv_size);
 		}
 		else if(recv_size == 0){
+			close(cache->sockfd);
+			disconnect_socket_queue_.push(cache->sockfd);
 			OnDisconnect(cache->sockfd);
 		}
 		else{
@@ -553,6 +578,7 @@ void NetServer_Epoll::Read(SocketCachePtr cache){// {{{2
 			}
 			else{
 				// EBADF, EFAULT, EINVAL, ENOMEM, ENOTCONN
+				NET_DEBUG_E("recv errno [" << errno << "]");
 				close(cache->sockfd);
 			}
 			break;
@@ -590,6 +616,7 @@ void NetServer_Epoll::Write(SocketCachePtr cache){// {{{2
 				}
 			}
 			else{
+				close(cache->sockfd);
 				NET_DEBUG_E("Fail to send data. socket[" << cache->sockfd << "] errno [" << errno << "]");
 			}
 			break;

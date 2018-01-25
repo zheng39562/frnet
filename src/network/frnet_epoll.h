@@ -65,7 +65,7 @@ namespace frnet{
 				eEpollEventType_Read = 0,
 				eEpollEventType_Write,
 				eEpollEventType_Connect,
-				eEpollEventType_DisConnect,
+				eEpollEventType_Disconnect,
 				eEpollEventType_Error,
 			};// }}}2
 
@@ -133,13 +133,15 @@ namespace frnet{
 					case eEpollEventType_Read: return "Read";
 					case eEpollEventType_Write: return "Write";
 					case eEpollEventType_Connect: return "Connect";
-					case eEpollEventType_DisConnect: return "Disconnect";
+					case eEpollEventType_Disconnect: return "Disconnect";
 					default : return "unknow error";
 				}
 			}
+
 		private:
 			frtemplate::LockQueue<TcpPacket> write_queue_;
 			frtemplate::LockQueue<EventInfo> event_active_queue_;
+			frtemplate::LockQueue<Socket> disconnect_socket_queue_;
 			std::vector<std::thread> work_threads_;
 			std::thread epoll_thread_;
 			std::map<Socket, SocketCachePtr> socket_2cache_ptr_;
