@@ -1,4 +1,4 @@
-include ../../make/config.mk
+include ./make/config.mk
 
 PROJECT_NAME=frrpc
 PROJECT_OBJECTS= \

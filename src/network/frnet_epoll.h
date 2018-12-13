@@ -26,7 +26,7 @@
 
 namespace frnet{
 
-	// NetClient_Epoll {{{1
+	// NetClient_Epoll
 	class NetClient_Epoll : public NetClient{
 		public:
 			NetClient_Epoll(NetListen* listen);
@@ -56,20 +56,19 @@ namespace frnet{
 
 			std::atomic<bool> is_connect_;
 	};
-	//}}}1
 
-	// NetServer_Epoll {{{1
+	// NetServer_Epoll
 	class NetServer_Epoll : public NetServer{
 		public:
-			enum eEpollEventType{// {{{2
+			enum eEpollEventType{
 				eEpollEventType_Read = 0,
 				eEpollEventType_Write,
 				eEpollEventType_Connect,
 				eEpollEventType_Disconnect,
 				eEpollEventType_Error,
-			};// }}}2
+			};
 
-			struct SocketCache{// {{{2
+			struct SocketCache{
 				SocketCache(Socket _sockfd, int32_t write_cache_size):sockfd(_sockfd),write_binary(),write_queue(),read_binary(),can_read(true),can_write(true),is_connect(true){
 					read_binary.reserve(write_cache_size);
 				}
@@ -83,24 +82,23 @@ namespace frnet{
 				bool is_connect;
 			};
 			typedef std::shared_ptr<SocketCache> SocketCachePtr;
-			// }}}2
+			
 
-			struct EventInfo{// {{{2
+			struct EventInfo{
 				EventInfo():type(eEpollEventType_Error), cache(){}
 				EventInfo(eEpollEventType _type, SocketCachePtr _cache):type(_type), cache(_cache){}
 
 				eEpollEventType type;
 				SocketCachePtr cache;
-			};// }}}2
+			};
 
-			struct TcpPacket{// {{{2
+			struct TcpPacket{
 				TcpPacket():sockfd(0), write_binary(){}
 				TcpPacket(Socket _sockfd, frpublic::BinaryMemoryPtr _binary):sockfd(_sockfd), write_binary(_binary){}
 
 				Socket sockfd;
 				frpublic::BinaryMemoryPtr write_binary;
 			};
-			//}}}2
 
 		public:
 			NetServer_Epoll(NetListen* listen);
@@ -149,8 +147,6 @@ namespace frnet{
 			Socket epoll_sockfd_;
 			std::atomic<bool> is_running_;
 	};
-	//}}}1
-
 }
 
 #endif 

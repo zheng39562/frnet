@@ -10,10 +10,10 @@
 
 using namespace std;
 
-// namespace frnet{{{1
+// namespace frnet
 namespace frnet{
 
-// log config {{{2
+// log config
 std::string g_log_key_ = "network";
 const std::string& log_key(){
 	return g_log_key_;
@@ -23,7 +23,6 @@ void set_log_config(const std::string& log_key, frpublic::eLogLevel log_level){
 	frpublic::SingleLogServer::GetInstance()->set_log_level(g_log_key_, log_level);
 }
 
-//}}}2
 
 //====================================================================================================
 NetInterface::NetInterface(NetListen* listen)
@@ -53,9 +52,8 @@ NetServer::NetServer(NetListen* listen)
 NetServer::~NetServer(){} 
 
 } // namespace frnet
-// }}}1
 
-// Network Creator : boost::asio {{{2
+// Network Creator : boost::asio
 #ifdef __TCP_USE_ASIO
 
 #include "frnet_tcp_asio.h"
@@ -66,24 +64,19 @@ NetServer::~NetServer(){}
 NetClient* CreateNetClient(frnet::NetListen* listen){ return NULL; }
 NetServer* CreateNetServer(frnet::NetListen* listen){ return NULL; }
 
-//}}}2
-
-// Network Creator : code self(linux epoll.) {{{2
+// Network Creator : code self(linux epoll.)
 #elif __FRNET_EPOLL
 
 #include "frnet_epoll.h"
 frnet::NetClient* CreateNetClient(frnet::NetListen* listen){ return new frnet::NetClient_Epoll(listen); }
 frnet::NetServer* CreateNetServer(frnet::NetListen* listen){ return new frnet::NetServer_Epoll(listen); }
 
-//// }}}2
-
-// else {{{2
+// else
 #else
 
 
 NetClient* CreateNetClient(frnet::NetListen* listen){ return NULL; }
 NetServer* CreateNetServer(frnet::NetListen* listen){ return NULL; }
-//}}}2
 
 #endif
 

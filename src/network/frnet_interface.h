@@ -15,12 +15,11 @@
 
 namespace frnet{
 
-	// log config {{{1
+	// log config
 	const std::string& log_key();
 	void set_log_config(const std::string& log_key, frpublic::eLogLevel log_level);
-	//}}}1
 
-	// enum {{{1
+	// enum 
 	enum eNetSendResult{
 		eNetSendResult_Ok = 0,
 		eNetSendResult_PacketBigger,
@@ -40,9 +39,8 @@ namespace frnet{
 		Socket sockfd;
 		eNetErrorNo err_no;
 	};
-	// }}}1
 
-	// class NetListen {{{1
+	// class NetListen 
 	class NetInterface;
 	class NetListen{
 		public:
@@ -50,7 +48,7 @@ namespace frnet{
 		public:
 			NetListen()=default;
 			virtual ~NetListen()=default;
-		private:
+		protected:
 			// param[out] read_size : 
 			//	delete date size when function finish. Set 0 If you do not want delete any data.
 			//
@@ -65,9 +63,8 @@ namespace frnet{
 			// include all error : read, write, disconnect and so on.
 			virtual void OnError(const NetError& net_error)=0;
 	};
-	//}}}1
 	
-	// class NetInterface {{{1
+	// class NetInterface 
 	class NetInterface{
 		public:
 			NetInterface(NetListen* listen);
@@ -99,9 +96,8 @@ namespace frnet{
 			size_t read_cache_size_;
 			NetListen* listen_;
 	};
-	//}}}1
 
-	// class NetClient {{{1
+	// class NetClient
 	class NetClient : public NetInterface{
 		public:
 			NetClient(NetListen* listen);
@@ -109,9 +105,8 @@ namespace frnet{
 		public:
 			virtual eNetSendResult Send(const frpublic::BinaryMemoryPtr& binary)=0;
 	};
-	//}}}1
 
-	// class NetServer {{{1
+	// class NetServer
 	class NetServer : public NetInterface{
 		public:
 			NetServer(NetListen* listen);
@@ -130,16 +125,14 @@ namespace frnet{
 			int32_t max_listen_num_;
 			int32_t work_thread_num_;
 	};
-	//}}}1
 	
 }
 
-// Create Function {{{1
+// Create Function
 extern "C"{
 	frnet::NetClient* CreateNetClient(frnet::NetListen* listen);
 	frnet::NetServer* CreateNetServer(frnet::NetListen* listen);
 }
-//}}}1
 
 #endif 
 
