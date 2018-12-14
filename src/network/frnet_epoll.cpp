@@ -241,6 +241,10 @@ NetServer_Epoll::NetServer_Epoll(NetListen* listen)
 
 NetServer_Epoll::~NetServer_Epoll(){
 	Stop();
+
+	if(epoll_thread_.joinable()){
+		epoll_thread_.join();
+	}
 }
 
 bool NetServer_Epoll::Start(const std::string& ip, Port port){
@@ -277,17 +281,10 @@ bool NetServer_Epoll::Start(const std::string& ip, Port port){
 }
 
 bool NetServer_Epoll::Stop(){
-	ClearVariables();
+	is_running_ = false;
 
-	for(auto& work_thread : work_threads_){
-		if(work_thread.joinable()){
-			work_thread.join();
-		}
-	}
-
-	if(epoll_thread_.joinable()){
-		epoll_thread_.join();
-	}
+	/*
+	*/
 
 	return true;
 }
@@ -353,11 +350,12 @@ void NetServer_Epoll::EpollProcess(){
 		return ;
 	}
 	
+	int32_t wait_timeout(1);
 	int32_t next_fetch_number(300);
 	queue<Socket> disconnect_socket_queue;
 	while(is_running_){
 		memset(events, 0, event_length * sizeof(epoll_event));
-		int recv_event_num = epoll_wait(epoll_sockfd_, events, event_length, 50); // 50ms timeout
+		int recv_event_num = epoll_wait(epoll_sockfd_, events, event_length, wait_timeout);
 
 		for(int index = 0; index < recv_event_num; ++index){
 			if(events[index].data.fd == listen_sockfd_){
@@ -377,8 +375,17 @@ void NetServer_Epoll::EpollProcess(){
 
 		RecvMessageFromWriteQueue(next_fetch_number);
 	}
-	
+
+	for(auto& work_thread : work_threads_){
+		if(work_thread.joinable()){
+			work_thread.join();
+		}
+	}
+
+	ClearVariables();
 	NET_DEBUG_P("Epoll thread Stop.");
+
+	OnClose();
 }
 
 void NetServer_Epoll::WorkProcess(){
@@ -391,7 +398,7 @@ void NetServer_Epoll::WorkProcess(){
 		}
 
 		if(event_active_queue_.pop(event_info)){
-			NET_DEBUG_D("receive net event. socket [%d] net type [%d]", event_info.cache->sockfd, GetTypeName(event_info.type).c_str());
+			NET_DEBUG_D("receive net event. socket [%d] net type [%s]", event_info.cache->sockfd, GetTypeName(event_info.type).c_str());
 
 			switch(event_info.type){
 				case eEpollEventType_Read:
@@ -436,7 +443,8 @@ void NetServer_Epoll::RecvMessageFromWriteQueue(int32_t number){
 void NetServer_Epoll::PerformEpollEventFromListen(const epoll_event& event){
 	// error and disconnect
 	if((event.events & EPOLLHUP) || (event.events & EPOLLERR)){
-		OnClose();
+		NET_DEBUG_E("listen_socket has error. errno [%d]", event.events);
+		is_running_ = false;
 		return;
 	}
 
@@ -444,7 +452,7 @@ void NetServer_Epoll::PerformEpollEventFromListen(const epoll_event& event){
 	if((event.events & EPOLLIN) || (event.events & EPOLLPRI)){ 
 		struct sockaddr_in address;
 		socklen_t len = sizeof(address);
-		while(true){
+		while(is_running_){
 			bzero(&address, sizeof(address));
 			Socket sockfd = accept(listen_sockfd_, (sockaddr*)&address, &len);
 			if(sockfd > 0){
@@ -507,7 +515,7 @@ void NetServer_Epoll::PerformEpollEvent(const epoll_event& event){
 					socket_2cache_ptr_iter->second->can_write = true;
 				}
 				else{
-					event_active_queue_.push(EventInfo(eEpollEventType_Read, socket_2cache_ptr_iter->second));
+					event_active_queue_.push(EventInfo(eEpollEventType_Write, socket_2cache_ptr_iter->second));
 				}
 			}
 		}
@@ -519,8 +527,6 @@ void NetServer_Epoll::PerformEpollEvent(const epoll_event& event){
 
 void NetServer_Epoll::ClearVariables(){
 	NET_DEBUG_P("Reset variables.");
-
-	is_running_ = false;
 
 	for(auto& socket_2cache_ptr_item : socket_2cache_ptr_){
 		close(socket_2cache_ptr_item.first);

@@ -18,7 +18,7 @@ using namespace std;
 using namespace frnet;
 using namespace frpublic;
 
-// Exit function list. {{{1
+// Exit function list.
 
 void AskToQuit();
 
@@ -50,7 +50,6 @@ bool IsAskedToQuit(){
 	pthread_once(&frrpc_func_s_signal_handle_once, RegisterQuitSignal);
 	return g_is_quit;
 }
-//}}}1
 
 //
 class EchoClient : public NetListen{
@@ -64,7 +63,7 @@ class EchoClient : public NetListen{
 		inline eNetSendResult Send(const frpublic::BinaryMemoryPtr& binary){ return net_client_->Send(binary); }
 	protected:
 		virtual bool OnReceive(Socket sockfd, const frpublic::BinaryMemory& binary, size_t& read_size){
-			DEBUG_D("receive [" << string((const char*)binary.buffer(), binary.size()) << "]");
+			DEBUG_D("receive [%s]", string((const char*)binary.buffer(), binary.size()).c_str());
 			read_size = binary.size();
 
 			DEBUG_D("Receive res, Disconnect.");
@@ -72,15 +71,21 @@ class EchoClient : public NetListen{
 			return false;
 		}
 
-		virtual void OnConnect(Socket sockfd){ }
-		virtual void OnDisconnect(Socket sockfd){ }
+		virtual void OnConnect(Socket sockfd){ 
+			DEBUG_D("connect socket [%d].", sockfd);
+		}
+
+		virtual void OnDisconnect(Socket sockfd){ 
+			DEBUG_D("disconnect socket [%d].", sockfd);
+		}
 
 		virtual void OnClose(){ 
 			DEBUG_D("Stop Server."); 
 			AskToQuit(); 
 		}
+
 		virtual void OnError(const NetError& error){
-			DEBUG_D("Receive error [" << error.err_no << "]");
+			DEBUG_D("Receive error [%d]", error.err_no);
 		}
 	private:
 		NetClient* net_client_;
@@ -98,7 +103,7 @@ int main(int argc, char* argv[]){
 		BinaryMemoryPtr binary(new BinaryMemory());
 		binary->add(msg.c_str(), msg.size());
 		if(client.Send(binary) != eNetSendResult_Ok){
-			DEBUG_D("Fail to send [" << msg << "]");
+			DEBUG_D("Fail to send [%s]", msg.c_str());
 			return 1;
 		}
 

@@ -1,7 +1,7 @@
 ### TODO:
 	* 多生产 多消费者: 考虑换掉lockqueue(回头看场景是否支持.)
 		linux内核kqueue, 这个库支持任意长度的对象入库，代码不到百行，在linux中效率之高，令人叫赞。
-		lockfree的实现(放在网关后面) 
+		lockfree的实现
 			* boost lock_free_queue : 已确认boost 的lfquque不满足要求，需要自己写，或者找其他queue
 		* 需要支持push/pop all 
 		* push call back function 模式;

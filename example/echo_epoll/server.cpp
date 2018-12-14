@@ -18,7 +18,7 @@ using namespace std;
 using namespace frnet;
 using namespace frpublic;
 
-// Exit function list. {{{1
+// Exit function list.
 
 void AskToQuit();
 
@@ -50,9 +50,8 @@ bool IsAskedToQuit(){
 	pthread_once(&frrpc_func_s_signal_handle_once, RegisterQuitSignal);
 	return g_is_quit;
 }
-//}}}1
 
-// class EchoServer {{{1
+// class EchoServer 
 class EchoServer : public NetListen{
 	public:
 		EchoServer():net_server_(CreateNetServer(this)){}
@@ -62,37 +61,38 @@ class EchoServer : public NetListen{
 		inline bool Stop(){ return net_server_->Stop(); }
 	protected:
 		virtual bool OnReceive(Socket sockfd, const frpublic::BinaryMemory& binary, size_t& read_size){
-			DEBUG_D("receive [" << string((const char*)binary.buffer(), binary.size()) << "]");
+			DEBUG_D("receive [%s]", string((const char*)binary.buffer(), binary.size()).c_str());
 			BinaryMemoryPtr write_binary(new BinaryMemory(binary));
 			if(net_server_->Send(sockfd, write_binary) == eNetSendResult_Ok){;
 				read_size = binary.size();
+				Stop();
 				return true;
 			}
 			else{
-				DEBUG_E("Fail to send response.[" << string((const char*)binary.buffer(), binary.size()) << "]");
+				DEBUG_E("Fail to send response.[%s]", string((const char*)binary.buffer(), binary.size()).c_str());
 			}
 			return false;
 		}
 
 		virtual void OnClose(){
+			AskToQuit();
 			DEBUG_D("Stop Server.");
 		}
 
 		virtual void OnError(const NetError& error){
-			DEBUG_D("Receive error [" << error.err_no << "]");
+			DEBUG_D("Receive error [%d]", error.err_no);
 		}
 
 		virtual void OnConnect(Socket sockfd){
-			DEBUG_D("Connect socket [" << sockfd << "]");
+			DEBUG_D("Connect socket [%d]", sockfd);
 		}
 
 		virtual void OnDisconnect(Socket sockfd){
-			DEBUG_D("Disconnect socket [" << sockfd << "]");
+			DEBUG_D("Disconnect socket [%d]", sockfd);
 		}
 	private:
 		NetServer* net_server_;
 };
-//}}}1
 
 int main(int argc, char* argv[]){
 	frpublic::SingleLogServer::GetInstance()->InitLog("./log", 10 * 1024);
@@ -110,7 +110,7 @@ int main(int argc, char* argv[]){
 		DEBUG_E("Fail to start server.");
 	}
 
-	cout << "close" << endl;
+	DEBUG_D("close");
 	return 0;
 }
 
