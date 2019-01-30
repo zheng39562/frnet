@@ -166,6 +166,7 @@ void NetClient_Epoll::ReadProcess(){
 			}
 			else if(recv_size == 0){
 				is_connect_ = false;
+				OnDisconnect(sockfd_);
 				NET_DEBUG_I("Receive disconnect info.");
 			}
 			else{
