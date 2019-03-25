@@ -9,8 +9,6 @@
 #ifndef _frnet_define_H
 #define _frnet_define_H
 
-// typedef {{{2
-//
 #include <stdint.h>
 
 typedef int32_t Socket;
@@ -23,8 +21,6 @@ typedef uint8_t Byte;
 #define NET_DEBUG_W(msg, arg...) K_DEBUG_W(log_key(), msg, ##arg)
 #define NET_DEBUG_E(msg, arg...) K_DEBUG_E(log_key(), msg, ##arg)
 #define NET_DEBUG_C(msg, arg...) K_DEBUG_C(log_key(), msg, ##arg)
-
-//}}}2
 
 #endif 
 
